@@ -125,6 +125,7 @@ fn print_usage() {
     eprintln!("\nTCP App Usage:");
     eprintln!("  Server: cargo run -- server HOST PORT root_path");
     // cargo run server 127.0.0.1 52709 "/home/ray/temp"
+    // cargo run server XXPA201LAP00072.local 52709 "C:\Users\hrag\temp"
     eprintln!("  Client: cargo run -- send_file HOST PORT src_path dest_path");
     eprintln!("\nExample:");
     eprintln!("  1. Terminal 1: cargo run -- server");
