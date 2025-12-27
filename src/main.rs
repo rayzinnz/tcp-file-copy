@@ -1,11 +1,11 @@
-use std::fs::{self, File, FileTimes, OpenOptions};
+use std::fs::{self, FileTimes, OpenOptions};
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{PathBuf, absolute};
 use std::time::{Duration, SystemTime};
 use std::{env, process, thread};
 use std::error::Error;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, RwLock};
 use std::collections::HashMap;
 use tcp_file_copy::{FileCopyOperation, SIGNATURE, StreamProgress};
 
@@ -105,7 +105,7 @@ fn run_server(host:&str, port:&str, root_path:PathBuf) -> Result<(), std::io::Er
                             handle_client(stream, streams_in_progress_clone, root_path_clone).expect("Error from handle_client");
                         });
                         if let Err(e) = handle.join() {
-                            eprintln!("Error in handle_client");
+                            eprintln!("Error in handle_client: {:?}", e);
                         }
                     }
                     Err(e) => {

@@ -6,8 +6,6 @@ use std::net::{TcpStream};
 use std::path::{Path, PathBuf};
 use std::time::{UNIX_EPOCH};
 use uuid::Uuid;
-#[cfg(target_os = "linux")]
-use std::os::unix::fs::{FileExt, MetadataExt};
 
 pub const SIGNATURE: [u8; 4] = [0x54, 0x46, 0x43, 0x31]; //tfc1
 
@@ -73,7 +71,7 @@ pub fn send_file_to_host(host:&str, port:u16, src:&Path, mut dest:PathBuf, is_co
     //inital package.
     let package = [SIGNATURE.to_vec(), uuid_bytes.to_vec(), binary_data].concat();
 
-    let mut file_current_len: u64 = 0;
+    let file_current_len: u64;
 	{
 		println!("Attempting to connect to server at {}...", address);
 		let mut stream = TcpStream::connect(&address)?;
@@ -106,7 +104,7 @@ pub fn send_file_to_host(host:&str, port:u16, src:&Path, mut dest:PathBuf, is_co
 		file.seek(std::io::SeekFrom::Start(file_current_len))?;
 		let mut buffer = vec![0u8; chunk_size];
 		loop {
-			let fpos = file.stream_position().expect("could not get stream position");
+			// let fpos = file.stream_position().expect("could not get stream position");
 			let nbytes = file.read(&mut buffer)?;
 			if nbytes==0 {
 				break;
