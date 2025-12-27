@@ -3,9 +3,11 @@ use std::error::Error;
 use std::fs::File;
 use std::io::{Read, Seek, Write};
 use std::net::{TcpStream};
-use std::os::unix::fs::{FileExt, MetadataExt};
 use std::path::{Path, PathBuf};
+use std::time::{UNIX_EPOCH};
 use uuid::Uuid;
+#[cfg(target_os = "linux")]
+use std::os::unix::fs::{FileExt, MetadataExt};
 
 pub const SIGNATURE: [u8; 4] = [0x54, 0x46, 0x43, 0x31]; //tfc1
 
@@ -41,6 +43,8 @@ pub fn send_file_to_host(host:&str, port:u16, src:&Path, mut dest:PathBuf, is_co
     let uuid_bytes = uuid.as_bytes();
 
 	let total_size = src_metadata.len();
+	let mtime = src_metadata.modified().expect("could not get mtime");
+	let mtime = mtime.duration_since(UNIX_EPOCH).expect("could not convert systemtime to unix epoch").as_secs();
 	// let num_chunks = total_size.div_ceil(chunk_size as u64) as usize;
 
 	let operation: FileCopyOperation;
@@ -57,7 +61,7 @@ pub fn send_file_to_host(host:&str, port:u16, src:&Path, mut dest:PathBuf, is_co
 		serverside_path: dest.to_string_lossy().to_string(),
 		operation: operation,
 		total_size: total_size,
-		mtime: src_metadata.mtime() as u64,
+		mtime: mtime,
 		chunk_size: chunk_size,
 		crc: 0,
 	};
