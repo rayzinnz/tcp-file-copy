@@ -4,5 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+crc-fast = "1.9.0"
+helper_lib = { git = "https://github.com/rayzinnz/rust-helper-lib.git" }
+log = "0.4.29"
 uuid = { version = "1.19.0", features = ["v4"] }
 wincode = {version = "0.2.5", features = ["derive"]}
