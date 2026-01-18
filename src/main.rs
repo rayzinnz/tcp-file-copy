@@ -1,16 +1,13 @@
 use crc_fast::{checksum_file, CrcAlgorithm::Crc64Nvme};
-use flate2::{read::ZlibDecoder, write::ZlibEncoder, Compression};
-use helper_lib::{setup_logger, datetime::{systemtime_to_unixtimestamp, unixtimestamp_to_systemtime}, paths::format_bytes};
+use helper_lib::{setup_logger, datetime::{systemtime_to_unixtimestamp, unixtimestamp_to_systemtime}};
 use log::*;
-use std::fs::{self, File, FileTimes, OpenOptions, remove_file};
+use std::fs::{self, File, FileTimes, OpenOptions};
 use std::io::{Read, Write, Seek};
 use std::net::{TcpListener, TcpStream};
 use std::path::{PathBuf, absolute};
 use std::time::{SystemTime};
 use std::{env, process, thread};
 use std::error::Error;
-// use std::sync::{Arc, RwLock};
-// use std::collections::HashMap;
 use tcp_file_copy::{DownloadClientInitalise, DownloadClientTransfer, DownloadServerInitalise, DownloadServerTransfer, FileCopyStep, SIGNATURE, UploadClientEnd, UploadClientInitalise, UploadClientTransfer, UploadServerEnd, UploadServerInitalise, UploadServerTransfer, download_file_from_server, upload_file_to_server};
 
 fn get_full_path(root_path:Option<PathBuf>, serverside_path:String) -> PathBuf {
@@ -105,22 +102,6 @@ fn handle_client(mut stream: TcpStream, root_path:Option<PathBuf>) -> Result<(),
                                     break 'fileop;
                                 }
                                 bytes = buffer[..nbytes].to_vec();
-                                if download_client_transfer.compress {
-                                    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-                                    if let Err(e) = encoder.write_all(&bytes) {
-                                        errmsg = Some(format!("Error compressing bytes: {}", e));
-                                        break 'fileop;
-                                    }
-                                    match encoder.finish() {
-                                        Ok(compressed_bytes) => {
-                                            bytes = compressed_bytes;
-                                        }
-                                        Err(e) => {
-                                            errmsg = Some(format!("Error finishing compression: {}", e));
-                                            break 'fileop;
-                                        }
-                                    }
-                                }
                             }
                             Err(e) => {
                                 errmsg = Some(format!("Error reading file: {}", e));
@@ -130,10 +111,12 @@ fn handle_client(mut stream: TcpStream, root_path:Option<PathBuf>) -> Result<(),
                     }
                     let download_server_transfer = DownloadServerTransfer {
                         error_msg: errmsg,
-                        bytes: bytes
+                        //bytes: bytes
                     };
                     let serialized = wincode::serialize(&download_server_transfer)?;
-                    stream.write_all(&serialized)?;
+                    let header_len: u64 = serialized.len() as u64;
+                    let package = [header_len.to_le_bytes().to_vec(), serialized, bytes].concat();
+                    stream.write_all(&package)?;
                 }
             } else {
                 //is upload operation
@@ -166,8 +149,12 @@ fn handle_client(mut stream: TcpStream, root_path:Option<PathBuf>) -> Result<(),
                     let serialized = wincode::serialize(&upload_server_initialise)?;
                     stream.write_all(&serialized)?;
                 } else if step == FileCopyStep::Transfer {
-                    let stream_bytes = &buffer[6..];
-                    let upload_client_transfer:UploadClientTransfer = wincode::deserialize(stream_bytes).expect("Could not deserialize bytes to UploadClientTransfer");
+                    let header_len:[u8; 8] = buffer[6..6+8].try_into().expect("Could not convert header_len bytes to fixed length");
+                    let header_len = u64::from_le_bytes(header_len);
+                    let byte_starting_pos = 14+header_len as usize;
+                    let header_bytes = &buffer[14..byte_starting_pos];
+                    let stream_bytes = &buffer[byte_starting_pos..];
+                    let upload_client_transfer:UploadClientTransfer = wincode::deserialize(header_bytes).expect("Could not deserialize bytes to UploadClientTransfer");
                     let full_path: PathBuf = get_full_path(root_path, upload_client_transfer.serverside_path);
                     // println!("full_path: {:?}", full_path);
                     //write bytes to end of file
@@ -177,14 +164,7 @@ fn handle_client(mut stream: TcpStream, root_path:Option<PathBuf>) -> Result<(),
                     };
                     let mut bytes: Vec<u8> = Vec::new();
                     if errmsg.is_none() {
-                        if upload_client_transfer.compress {
-                            let mut decompressed = ZlibDecoder::new(upload_client_transfer.bytes.as_slice());
-                            if let Err(e) = decompressed.read_to_end(&mut bytes) {
-                                errmsg = Some(format!("Error decompressing stream on server: {}", e));
-                            };
-                        } else {
-                            bytes = upload_client_transfer.bytes;
-                        }
+                        bytes = stream_bytes.into();
                     }
                     if errmsg.is_none() {
                         {
@@ -250,78 +230,6 @@ fn handle_client(mut stream: TcpStream, root_path:Option<PathBuf>) -> Result<(),
                 }
             }
         }
-        // Ok(n) if n >= 21 => {
-        //     //expected chunk header: signature: 4 bytes + uuid 16 bytes + step 1 byte,
-        //     let signature:[u8; 4] = buffer[0..4].try_into().expect("buffer size is not 4 bytes");
-        //     if signature != SIGNATURE {
-        //         Err("Unexpected signature at start of chunk.")?;
-        //     }
-        //     //if new item then a string of all met details, otherwise if is_read then amount of bytes or !is_read then bytes to stream through
-        //     // let mut stream_exists = false;
-        //     // {
-
-        //     // }
-        //     let uuid_bytes:[u8; 16] = buffer[4..20].try_into().expect("buffer size is not 16 bytes");
-        //     let step = buffer[20];
-        //     let step = FileCopyStep::from_u8(buffer[20]).expect(&format!("unexpected step value: {}", step));
-        //     //let streams_in_progress_reader = streams_in_progress.read().expect("could not read streams_in_progress");
-        //     if step == FileCopyStep::Initialise {
-        //         let stream_bytes = &buffer[21..];
-        //         let stream_progress:StreamProgress = wincode::deserialize(stream_bytes).expect("Could not deserialize bytes to StreamProgress");
-        //         debug!("{:#?}", stream_progress);
-        //         let mut file_current_len: u64 = 0;
-        //         let full_path = absolute(root_path.join(&stream_progress.serverside_path))?;
-        //         debug!("full_path: {:?}", full_path);
-        //         if full_path.exists() {
-        //             if stream_progress.operation == FileCopyOperation::WriteReplace {
-        //                 fs::remove_file(&full_path).expect("Could not remove file"); 
-        //             } else {
-        //                 let serverside_path_metadata = full_path.metadata().expect("error getting serverside_path metadata");
-        //                 file_current_len = serverside_path_metadata.len();
-        //             }
-        //         }
-        //         streams_in_progress.write().expect("could not write streams_in_progress").insert(uuid_bytes, stream_progress.clone());
-        //         //send back starting byte. To know where to continue from.
-        //         stream.write_all(format!("file_current_len={}", file_current_len).as_bytes())?;
-        //     } else if step == FileCopyStep::Transfer {
-        //         let streams_in_progress_reader = streams_in_progress.read().expect("could not read streams_in_progress");
-        //         let stream_progress = streams_in_progress_reader.get(&uuid_bytes).unwrap();
-        //         // println!("{:#?}", stream_progress);
-        //         let mtime = SystemTime::UNIX_EPOCH.checked_add(Duration::new(stream_progress.mtime, 0)).expect("could not get systemtime for mtime");
-        //         //write bytes to end of file
-        //         let full_path = absolute(root_path.join(&stream_progress.serverside_path))?;
-        //         // println!("full_path: {:?}", full_path);
-        //         fs::create_dir_all(full_path.parent().unwrap())?;
-        //         let file_bytes = &buffer[21..];
-        //         // println!("file_bytes: {:?}", file_bytes);
-        //         {
-        //             let mut file = OpenOptions::new().write(true).append(true).create(true).open(&full_path)?;
-        //             file.write_all(file_bytes)?;
-        //             let times = FileTimes::new()
-        //                 .set_modified(mtime);
-        //             file.set_times(times)?;
-        //         }
-        //         let file_metadata = full_path.metadata()?;
-        //         let msg = format!("in progress stream, filesize: {} / {} {:.1}%", format_bytes(file_metadata.len()), format_bytes(stream_progress.total_size), file_metadata.len() as f64 / stream_progress.total_size as f64 * 100.0);
-        //         info!("{msg}");
-        //         stream.write_all(msg.as_bytes())?;
-        //     } else if step == FileCopyStep::End {
-        //         let streams_in_progress_reader = streams_in_progress.read().expect("could not read streams_in_progress");
-        //         let stream_progress = streams_in_progress_reader.get(&uuid_bytes).unwrap();
-        //         // let mtime = SystemTime::UNIX_EPOCH.checked_add(Duration::new(stream_progress.mtime, 0)).expect("could not get systemtime for mtime");
-        //         let full_path = absolute(root_path.join(&stream_progress.serverside_path))?;
-        //         let file_crc = checksum_file(Crc64Nvme, &full_path.to_string_lossy(), None).unwrap();
-        //         if file_crc != stream_progress.crc {
-        //             let msg = "CRC does not match!";
-        //             stream.write_all(msg.as_bytes())?;
-        //             Err(msg)?
-        //         } else {
-        //             let msg = "File transfer completed successfully";
-        //             stream.write_all(msg.as_bytes())?;
-        //         }
-        //     } else {
-        //     }
-        // }
         Ok(n) if n > 0 => {
             Err(format!("Server received: {} bytes, should contain header", n))?;
         }
@@ -381,6 +289,7 @@ fn print_usage() {
     // cargo run server XXPA201LAP00072.local 52709 --path "C:\Users\hrag\temp"
     eprintln!("  Client: cargo run -- upload HOST PORT src_path_local dest_path_server");
     // cargo run upload 127.0.0.1 52709 "./tests/Bremshley Treadmill Service Manual.pdf" "./large"
+    // cargo run upload 127.0.0.1 52709 "/home/ray/Downloads/vulkansdk-linux-x86_64-1.4.328.1.tar.xz" "./large"
     // cargo run upload XXPA201LAP00072.local 52709 "./tests/Bremshley Treadmill Service Manual.pdf" "./large"
     eprintln!("  Client: cargo run -- download HOST PORT src_path_server dest_path_local");
     // cargo run download 127.0.0.1 52709 "./large/Bremshley Treadmill Service Manual.pdf" "/home/ray/temp/rec"
@@ -428,7 +337,7 @@ fn main() {
         let port: u16 = args[3].clone().parse().expect("error parsing port to u16");
         let src = PathBuf::from(&args[4]);
         let dest = PathBuf::from(&args[5]);
-        upload_file_to_server(&host, port, src, dest, true, None, true).expect("Error in upload_file_to_server")
+        upload_file_to_server(&host, port, src, dest, true, None).expect("Error in upload_file_to_server")
     } else if args[1]==String::from("download") {
         if args.len() < 6 {
             print_usage();
@@ -438,7 +347,7 @@ fn main() {
         let port: u16 = args[3].clone().parse().expect("error parsing port to u16");
         let src = PathBuf::from(&args[4]);
         let dest = PathBuf::from(&args[5]);
-        download_file_from_server(&host, port, src, dest, true, None, true).expect("Error in download_file_from_server")
+        download_file_from_server(&host, port, src, dest, true, None).expect("Error in download_file_from_server")
     } else {
         print_usage();
         process::exit(1);
