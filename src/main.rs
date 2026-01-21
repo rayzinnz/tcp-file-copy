@@ -310,6 +310,10 @@ fn main() {
         print_usage();
         process::exit(1);
     }
+    let mut is_continue = true;
+    if args.contains(&"--overwrite".to_string()) {
+        is_continue = false;
+    }
     if args[1]==String::from("server") {
         if args.len() < 4 {
             print_usage();
@@ -337,7 +341,7 @@ fn main() {
         let port: u16 = args[3].clone().parse().expect("error parsing port to u16");
         let src = PathBuf::from(&args[4]);
         let dest = PathBuf::from(&args[5]);
-        upload_file_to_server(&host, port, src, dest, true, None).expect("Error in upload_file_to_server")
+        upload_file_to_server(&host, port, src, dest, is_continue, None).expect("Error in upload_file_to_server")
     } else if args[1]==String::from("download") {
         if args.len() < 6 {
             print_usage();
@@ -347,7 +351,7 @@ fn main() {
         let port: u16 = args[3].clone().parse().expect("error parsing port to u16");
         let src = PathBuf::from(&args[4]);
         let dest = PathBuf::from(&args[5]);
-        download_file_from_server(&host, port, src, dest, true, None).expect("Error in download_file_from_server")
+        download_file_from_server(&host, port, src, dest, is_continue, None).expect("Error in download_file_from_server")
     } else {
         print_usage();
         process::exit(1);
