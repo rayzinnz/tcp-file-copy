@@ -65,10 +65,15 @@ pub struct UploadClientEnd {
 pub struct UploadServerEnd {
 	pub error_msg: Option<String>,
 }
+#[derive(Clone, Debug, SchemaWrite, SchemaRead)]
+pub struct DeleteClientInitalise {
+    pub serverside_path: String,
+}
+#[derive(Clone, Debug, SchemaWrite, SchemaRead)]
+pub struct DeleteServerResponse {
+	pub error_msg: Option<String>,
+}
 
-/* what am i
-client: signature + is_upload + step
-*/
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum FileCopyStep {
@@ -108,7 +113,7 @@ File Download:
 	let chunk_size: usize = chunk_size.unwrap_or(DEFAULT_CHUNK_SIZE);
 	
 	dest.push(src.file_name().expect("no filename in src"));
-	if !is_continue {
+	if !is_continue && dest.exists() {
 		fs::remove_file(&dest).expect(&format!("Could not delete file: {}", dest.to_string_lossy()));
 	}
 	match dest.parent() {
@@ -323,6 +328,42 @@ File Upload:
 	Ok(())
 }
 
+pub fn delete_path_from_server(host:&str, port:u16, path:PathBuf) -> Result<(), Box<dyn Error>> {
+/*
+File Delete:
+1. client: Here is the relative path to the file to be deleted
+   server: I will delete the file
+*/
+
+    let address = format!("{}:{}", host, port);
+
+	let delete_client_initialise = DeleteClientInitalise {
+		serverside_path: path.to_string_lossy().to_string(),
+	};
+	
+	let is_upload:u8 = 2;
+	let serialized = wincode::serialize(&delete_client_initialise)?;
+	let step:FileCopyStep = FileCopyStep::Initialise;
+    let package: Vec<u8> = [SIGNATURE.to_vec(), vec![is_upload], vec![step.to_u8()], serialized].concat();
+	let delete_server_response: DeleteServerResponse;
+	{
+		info!("Connecting to server at {}...", address);
+		let mut stream = TcpStream::connect(&address)?;
+		stream.write_all(&package)?;
+		stream.shutdown(std::net::Shutdown::Write).expect("Error in write stream shutdown");
+		let mut buffer_from_server = Vec::new();
+		let _n = stream.read_to_end(&mut buffer_from_server)?;
+		// println!("{:?}", buffer_from_server);
+		delete_server_response = wincode::deserialize(&buffer_from_server).expect("Could not deserialize bytes to UploadServerInitalise");
+		debug!("delete_server_response: {:#?}", delete_server_response)
+	}
+	if let Some(errmsg) = delete_server_response.error_msg {
+		error!("{errmsg}");
+		return Err(errmsg)?;
+	}
+
+	Ok(())
+}
 
 // cargo test -- --nocapture
 #[cfg(test)]

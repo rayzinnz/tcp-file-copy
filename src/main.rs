@@ -8,7 +8,7 @@ use std::path::{PathBuf, absolute};
 use std::time::{SystemTime};
 use std::{env, process, thread};
 use std::error::Error;
-use tcp_file_copy::{DownloadClientInitalise, DownloadClientTransfer, DownloadServerInitalise, DownloadServerTransfer, FileCopyStep, SIGNATURE, UploadClientEnd, UploadClientInitalise, UploadClientTransfer, UploadServerEnd, UploadServerInitalise, UploadServerTransfer, download_file_from_server, upload_file_to_server};
+use tcp_file_copy::{DeleteClientInitalise, DeleteServerResponse, DownloadClientInitalise, DownloadClientTransfer, DownloadServerInitalise, DownloadServerTransfer, FileCopyStep, SIGNATURE, UploadClientEnd, UploadClientInitalise, UploadClientTransfer, UploadServerEnd, UploadServerInitalise, UploadServerTransfer, delete_path_from_server, download_file_from_server, upload_file_to_server};
 
 fn get_full_path(root_path:Option<PathBuf>, serverside_path:String) -> PathBuf {
     match root_path {
@@ -118,7 +118,7 @@ fn handle_client(mut stream: TcpStream, root_path:Option<PathBuf>) -> Result<(),
                     let package = [header_len.to_le_bytes().to_vec(), serialized, bytes].concat();
                     stream.write_all(&package)?;
                 }
-            } else {
+            } else if is_upload == 1 {
                 //is upload operation
                 if step == FileCopyStep::Initialise {
                     let stream_bytes = &buffer[6..];
@@ -228,6 +228,35 @@ fn handle_client(mut stream: TcpStream, root_path:Option<PathBuf>) -> Result<(),
                     let serialized = wincode::serialize(&upload_server_end)?;
                     stream.write_all(&serialized)?;
                 }
+            } else if is_upload == 2 {
+                //is delete operation
+                if step == FileCopyStep::Initialise {
+                    let stream_bytes = &buffer[6..];
+                    let delete_client_initialise:DeleteClientInitalise = wincode::deserialize(stream_bytes).expect("Could not deserialize bytes to DeleteClientInitalise");
+                    debug!("{:#?}", delete_client_initialise);
+                    let full_path: PathBuf = get_full_path(root_path, delete_client_initialise.serverside_path);
+                    let mut errmsg: Option<String> = None;
+                    if full_path.exists() {
+                        if full_path.is_dir() {
+                            if let Err(e) = fs::remove_dir(&full_path) {
+                                errmsg = Some(format!("Error deleting existing directory on server: {}", e));
+                            }
+                        } else {
+                            if let Err(e) = fs::remove_file(&full_path) {
+                                errmsg = Some(format!("Error deleting existing file on server: {}", e));
+                            }
+                        }
+                    } else {
+                        errmsg = Some(format!("Path does not exist on server: {}", full_path.to_string_lossy()));
+                    }
+                    let delete_server_response = DeleteServerResponse {
+                        error_msg: errmsg,
+                    };
+                    let serialized = wincode::serialize(&delete_server_response)?;
+                    stream.write_all(&serialized)?;
+                }
+            } else {
+                Err(format!("Unknown is_upload value: {}", is_upload))?;
             }
         }
         Ok(n) if n > 0 => {
@@ -294,6 +323,9 @@ fn print_usage() {
     eprintln!("  Client: cargo run -- download HOST PORT src_path_server dest_path_local");
     // cargo run download 127.0.0.1 52709 "./large/Bremshley Treadmill Service Manual.pdf" "/home/ray/temp/rec"
     // cargo run download XXPA201LAP00072.local 52709 "./large/Bremshley Treadmill Service Manual.pdf" "C:\Users\hrag\temp\rec"
+    eprintln!("  Client: cargo run -- delete HOST PORT path_server");
+    // cargo run delete 127.0.0.1 52709 "./large/Bremshley Treadmill Service Manual.pdf"
+    // cargo run delete 127.0.0.1 52709 "./untitled folder"
     eprintln!("\nExample:");
     eprintln!("  1. Terminal 1: cargo run -- server");
     eprintln!("  2. Terminal 2: cargo run -- client \"Hello, World!\"");
@@ -352,6 +384,15 @@ fn main() {
         let src = PathBuf::from(&args[4]);
         let dest = PathBuf::from(&args[5]);
         download_file_from_server(&host, port, src, dest, is_continue, None).expect("Error in download_file_from_server")
+    } else if args[1]==String::from("delete") {
+        if args.len() < 5 {
+            print_usage();
+            process::exit(1);
+        }
+        let host = args[2].clone();
+        let port: u16 = args[3].clone().parse().expect("error parsing port to u16");
+        let path = PathBuf::from(&args[4]);
+        delete_path_from_server(&host, port, path).expect("Error in delete_file_from_server")
     } else {
         print_usage();
         process::exit(1);
