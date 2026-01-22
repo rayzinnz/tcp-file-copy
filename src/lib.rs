@@ -269,7 +269,7 @@ File Upload:
 
 
 	//now we send file bytes, if any left to send.
-	if upload_server_initalise.filelen == filelen  {
+	if filelen>0 && upload_server_initalise.filelen == filelen  {
 		warn!("File of same size already exists in destination.");
 		return Ok(());
 	}
