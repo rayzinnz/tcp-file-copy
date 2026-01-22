@@ -208,7 +208,7 @@ fn handle_client(mut stream: TcpStream, root_path:Option<PathBuf>) -> Result<(),
                     if errmsg.is_none() {
                         let mtime = unixtimestamp_to_systemtime(upload_client_end.mtime);
                         {
-                            match File::open(full_path) {
+                            match OpenOptions::new().write(true).open(full_path) {
                                 Ok(file) => {
                                     let times = FileTimes::new()
                                         .set_modified(mtime);
@@ -320,6 +320,7 @@ fn print_usage() {
     // cargo run upload 127.0.0.1 52709 "./tests/Bremshley Treadmill Service Manual.pdf" "./large"
     // cargo run upload 127.0.0.1 52709 "/home/ray/Downloads/vulkansdk-linux-x86_64-1.4.328.1.tar.xz" "./large"
     // cargo run upload XXPA201LAP00072.local 52709 "./tests/Bremshley Treadmill Service Manual.pdf" "./large"
+    // cargo run upload XXPA201LAP00072.local 52709 "c:\Users\hrag\Sync\onecard.txt" ""
     eprintln!("  Client: cargo run -- download HOST PORT src_path_server dest_path_local");
     // cargo run download 127.0.0.1 52709 "./large/Bremshley Treadmill Service Manual.pdf" "/home/ray/temp/rec"
     // cargo run download XXPA201LAP00072.local 52709 "./large/Bremshley Treadmill Service Manual.pdf" "C:\Users\hrag\temp\rec"
