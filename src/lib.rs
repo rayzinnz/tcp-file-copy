@@ -277,11 +277,12 @@ File Upload:
 		let mut file = File::open(src)?;
 		file.seek(std::io::SeekFrom::Start(upload_server_initalise.filelen))?;
 		let mut buffer = vec![0u8; chunk_size];
+		let mut iloop:i32 = 0;
 		loop {
 			let cur_pos = file.stream_position()?;
 			info!("{:.1}% {}/{}", cur_pos as f64 / filelen as f64 * 100.0, format_bytes(cur_pos), format_bytes(filelen));
 			let nbytes = file.read(&mut buffer)?;
-			if nbytes==0 {
+			if nbytes==0 && iloop>0 {
 				break;
 			}
 			let bytes: Vec<u8> = buffer[..nbytes].to_vec();
@@ -306,6 +307,7 @@ File Upload:
 				error!("{errmsg}");
 				return Err(errmsg)?;
 			}
+			iloop+=1;
 		}
 	}
 

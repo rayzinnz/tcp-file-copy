@@ -157,6 +157,7 @@ fn handle_client(mut stream: TcpStream, root_path:Option<PathBuf>) -> Result<(),
                     let upload_client_transfer:UploadClientTransfer = wincode::deserialize(header_bytes).expect("Could not deserialize bytes to UploadClientTransfer");
                     let full_path: PathBuf = get_full_path(root_path, upload_client_transfer.serverside_path);
                     // println!("full_path: {:?}", full_path);
+                    // println!("stream_bytes.len(): {}", stream_bytes.len());
                     //write bytes to end of file
                     let mut errmsg: Option<String> = None;
                     if let Err(e) = fs::create_dir_all(full_path.parent().unwrap()) {
@@ -316,6 +317,7 @@ fn print_usage() {
     eprintln!("  Server: cargo run -- server HOST PORT --path root_path");
     // cargo run server 127.0.0.1 52709 --path "/home/ray/temp"
     // cargo run server XXPA201LAP00072.local 52709 --path "C:\Users\hrag\temp"
+    // cargo run server XXPA201LAP00072.local 52710 --path "C:\Users\hrag"
     eprintln!("  Client: cargo run -- upload HOST PORT src_path_local dest_path_server");
     // cargo run upload 127.0.0.1 52709 "./tests/Bremshley Treadmill Service Manual.pdf" "./large"
     // cargo run upload 127.0.0.1 52709 "/home/ray/Downloads/vulkansdk-linux-x86_64-1.4.328.1.tar.xz" "./large"
