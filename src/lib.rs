@@ -153,41 +153,48 @@ File Download:
 		} else {
 			let dest_metadata = dest.metadata().expect("error getting destination metadata");
 			filelen = dest_metadata.len();
+			if filelen >= download_server_initalise.filelen {
+				break;
+			}
 		}
-		if filelen >= download_server_initalise.filelen {
+		if download_server_initalise.filelen==0 {
+			info!("creating empty 0 byte file {}", dest.to_string_lossy());
+			let _ = fs::write(&dest, &[])?;
+			// println!("{:#?}", r);
 			break;
-		}
-		info!("{:.1}% {}/{}", filelen as f64 / download_server_initalise.filelen as f64 * 100.0, format_bytes(filelen), format_bytes(download_server_initalise.filelen));
-		let download_client_transfer = DownloadClientTransfer {
-			serverside_path: src.to_string_lossy().to_string(),
-			from_byte: filelen,
-			chunk_size: chunk_size,
-		};
-		let serialized = wincode::serialize(&download_client_transfer)?;
-		let step:FileCopyStep = FileCopyStep::Transfer;
-		let package = [SIGNATURE.to_vec(), vec![0u8], vec![step.to_u8()], serialized].concat();
-		let download_server_transfer: DownloadServerTransfer;
-		let file_bytes: Vec<u8>;
-		{
-			let mut stream = TcpStream::connect(&address)?;
-			stream.write_all(&package)?;
-			stream.shutdown(std::net::Shutdown::Write).expect("Error in write stream shutdown");
-			let mut buffer_from_server = Vec::new();
-			let _n = stream.read_to_end(&mut buffer_from_server)?;
-			let header_len:[u8; 8] = buffer_from_server[0..8].try_into().expect("Could not convert header_len bytes to fixed length");
-			let header_len = u64::from_le_bytes(header_len);
-			let byte_starting_pos = 8+header_len as usize;
-			let header_bytes = &buffer_from_server[8..byte_starting_pos];
-			file_bytes = buffer_from_server[byte_starting_pos..].into();
-			download_server_transfer = wincode::deserialize(header_bytes).expect("Could not deserialize bytes to DownloadServerTransfer");
-		}
-		if let Some(errmsg) = download_server_transfer.error_msg {
-			error!("{errmsg}");
-			return Err(errmsg)?;
-		}
-		{
-			let mut file = OpenOptions::new().write(true).append(true).create(true).open(&dest)?;
-			file.write_all(file_bytes.as_slice())?;
+		} else {
+			info!("{:.1}% {}/{}", filelen as f64 / download_server_initalise.filelen as f64 * 100.0, format_bytes(filelen), format_bytes(download_server_initalise.filelen));
+			let download_client_transfer = DownloadClientTransfer {
+				serverside_path: src.to_string_lossy().to_string(),
+				from_byte: filelen,
+				chunk_size: chunk_size,
+			};
+			let serialized = wincode::serialize(&download_client_transfer)?;
+			let step:FileCopyStep = FileCopyStep::Transfer;
+			let package = [SIGNATURE.to_vec(), vec![0u8], vec![step.to_u8()], serialized].concat();
+			let download_server_transfer: DownloadServerTransfer;
+			let file_bytes: Vec<u8>;
+			{
+				let mut stream = TcpStream::connect(&address)?;
+				stream.write_all(&package)?;
+				stream.shutdown(std::net::Shutdown::Write).expect("Error in write stream shutdown");
+				let mut buffer_from_server = Vec::new();
+				let _n = stream.read_to_end(&mut buffer_from_server)?;
+				let header_len:[u8; 8] = buffer_from_server[0..8].try_into().expect("Could not convert header_len bytes to fixed length");
+				let header_len = u64::from_le_bytes(header_len);
+				let byte_starting_pos = 8+header_len as usize;
+				let header_bytes = &buffer_from_server[8..byte_starting_pos];
+				file_bytes = buffer_from_server[byte_starting_pos..].into();
+				download_server_transfer = wincode::deserialize(header_bytes).expect("Could not deserialize bytes to DownloadServerTransfer");
+			}
+			if let Some(errmsg) = download_server_transfer.error_msg {
+				error!("{errmsg}");
+				return Err(errmsg)?;
+			}
+			{
+				let mut file = OpenOptions::new().write(true).append(true).create(true).open(&dest)?;
+				file.write_all(file_bytes.as_slice())?;
+			}
 		}
 	}
 

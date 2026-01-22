@@ -323,6 +323,7 @@ fn print_usage() {
     eprintln!("  Client: cargo run -- download HOST PORT src_path_server dest_path_local");
     // cargo run download 127.0.0.1 52709 "./large/Bremshley Treadmill Service Manual.pdf" "/home/ray/temp/rec"
     // cargo run download XXPA201LAP00072.local 52709 "./large/Bremshley Treadmill Service Manual.pdf" "C:\Users\hrag\temp\rec"
+    // cargo run download XXPA201LAP00072.local 52710 "Sync/network/router.txt~" "/home/ray/MEGA/Rays/network" --overwrite
     eprintln!("  Client: cargo run -- delete HOST PORT path_server");
     // cargo run delete 127.0.0.1 52709 "./large/Bremshley Treadmill Service Manual.pdf"
     // cargo run delete 127.0.0.1 52709 "./untitled folder"
