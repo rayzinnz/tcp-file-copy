@@ -207,7 +207,7 @@ File Download:
 	//set mtime
 	let mtime = unixtimestamp_to_systemtime(download_server_initalise.mtime);
 	{
-		let file = File::open(dest)?;
+		let file = OpenOptions::new().write(true).open(dest)?;
 		let times = FileTimes::new()
 			.set_modified(mtime);
 		file.set_times(times)?;
