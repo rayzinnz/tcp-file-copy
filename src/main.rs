@@ -1,5 +1,5 @@
 use crc_fast::{checksum_file, CrcAlgorithm::Crc64Nvme};
-use helper_lib::{setup_logger, datetime::{systemtime_to_unixtimestamp, unixtimestamp_to_systemtime}};
+use helper_lib::{datetime::{systemtime_to_unixtimestamp, unixtimestamp_to_systemtime}};
 use log::*;
 use std::fs::{self, File, FileTimes, OpenOptions};
 use std::io::{Read, Write, Seek};
