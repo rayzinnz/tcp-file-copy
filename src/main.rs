@@ -278,6 +278,13 @@ fn run_server(host:&str, port:&str, root_path:Option<PathBuf>) -> Result<(), std
     let listener = TcpListener::bind(&address)?;
     // let streams_in_progress: Arc<RwLock<HashMap<[u8; 16], StreamProgress>>> = Arc::new(RwLock::new(HashMap::new()));
 
+    // Print the main network card IP address
+    if let Ok(local_ip) = local_ip_address::local_ip() {
+        println!("Main network card IP address: {}", local_ip);
+    } else {
+        println!("Could not determine main network card IP address");
+    }
+
     println!("TCP Server running on {}", address);
     println!("Listening for connections...");
 
@@ -317,12 +324,10 @@ fn print_usage() {
     eprintln!("  Server: cargo run -- server HOST PORT --path root_path");
     // cargo run server 127.0.0.1 52709 --path "/home/ray/temp"
     // cargo run server XXPA201LAP00072.local 52709 --path "C:\Users\hrag\temp"
-    // cargo run server XXPA201LAP00072.local 52710 --path "C:\Users\hrag"
     eprintln!("  Client: cargo run -- upload HOST PORT src_path_local dest_path_server");
     // cargo run upload 127.0.0.1 52709 "./tests/Bremshley Treadmill Service Manual.pdf" "./large"
     // cargo run upload 127.0.0.1 52709 "/home/ray/Downloads/vulkansdk-linux-x86_64-1.4.328.1.tar.xz" "./large"
     // cargo run upload XXPA201LAP00072.local 52709 "./tests/Bremshley Treadmill Service Manual.pdf" "./large"
-    // cargo run upload XXPA201LAP00072.local 52709 "c:\Users\hrag\Sync\onecard.txt" ""
     // cargo run upload XXPA201LAP00072.local 52710 "/home/ray/MEGA/Rays/Programming/LLM/EmailResponses/outtext_gemma.txt" "./Sync/Programming/LLM/EmailResponses" --overwrite
     eprintln!("  Client: cargo run -- download HOST PORT src_path_server dest_path_local");
     // cargo run download 127.0.0.1 52709 "./large/Bremshley Treadmill Service Manual.pdf" "/home/ray/temp/rec"
