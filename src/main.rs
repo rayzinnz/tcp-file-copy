@@ -342,7 +342,7 @@ fn print_usage() {
 }
 
 fn main() {
-    setup_logger(LevelFilter::Trace);
+    helper_lib::setup_logger(LevelFilter::Trace, None, "", "html5ever");
 
     let args: Vec<String> = env::args().collect();
     // println!("{args:?}");
