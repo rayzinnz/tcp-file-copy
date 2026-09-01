@@ -1,8 +1,8 @@
 use crc_fast::{checksum_file, CrcAlgorithm::Crc64Nvme};
-use helper_lib::{datetime::{systemtime_to_unixtimestamp, unixtimestamp_to_systemtime}, paths::format_bytes};
+use helper_lib::{datetime::{systemtime_to_unixtimestamp, unixtimestamp_to_systemtime}, paths::{format_bytes, set_mtime}};
 use log::*;
 use std::error::Error;
-use std::fs::{self, File, FileTimes, OpenOptions};
+use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Seek, Write};
 use std::net::{TcpStream};
 use std::path::{PathBuf};
@@ -206,12 +206,7 @@ File Download:
 
 	//set mtime
 	let mtime = unixtimestamp_to_systemtime(download_server_initalise.mtime);
-	{
-		let file = OpenOptions::new().write(true).open(dest)?;
-		let times = FileTimes::new()
-			.set_modified(mtime);
-		file.set_times(times)?;
-	}
+	set_mtime(&dest, mtime)?;
 
 	Ok(())
 }
